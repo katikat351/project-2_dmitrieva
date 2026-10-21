@@ -1,14 +1,38 @@
 import shlex
 
-from primitive_db.core import create_table, drop_table, list_tables
-from primitive_db.utils import load_metadata, save_metadata
+from prettytable import PrettyTable
+
+from primitive_db.core import (
+    create_table,
+    delete,
+    drop_table,
+    insert,
+    list_tables,
+    select,
+    update,
+    validate_clause,
+)
+from primitive_db.parser import (
+    parse_delete,
+    parse_info,
+    parse_insert,
+    parse_select,
+    parse_update,
+)
+from primitive_db.utils import (
+    load_metadata,
+    load_table_data,
+    save_metadata,
+    save_table_data,
+)
 
 META_FILE = "db_meta.json"
 PROMPT = ">>>Введите команду: "
+DATA_COMMANDS = ("insert", "select", "update", "delete", "info")
 
 
 def print_help():
-    """Prints the help message for the current mode."""
+    """Выводит справку по командам."""
 
     print("\n***Процесс работы с таблицей***")
     print("Функции:")
@@ -16,9 +40,104 @@ def print_help():
     print("<command> list_tables - показать список всех таблиц")
     print("<command> drop_table <имя_таблицы> - удалить таблицу")
 
+    print("\n***Операции с данными***")
+    print("Функции:")
+    print(
+        "<command> insert into <имя_таблицы> values "
+        "(<значение1>, <значение2>, ...) - создать запись."
+    )
+    print(
+        "<command> select from <имя_таблицы> where "
+        "<столбец> = <значение> - прочитать записи по условию."
+    )
+    print("<command> select from <имя_таблицы> - прочитать все записи.")
+    print(
+        "<command> update <имя_таблицы> set <столбец1> = <новое_значение1> "
+        "where <столбец_условия> = <значение_условия> - обновить запись."
+    )
+    print(
+        "<command> delete from <имя_таблицы> where "
+        "<столбец> = <значение> - удалить запись."
+    )
+    print("<command> info <имя_таблицы> - вывести информацию о таблице.")
+
     print("\nОбщие команды:")
     print("<command> exit - выход из программы")
     print("<command> help - справочная информация\n")
+
+
+def print_rows(metadata, table_name, rows):
+    """Выводит записи таблицы в виде красивой таблицы."""
+    if not rows:
+        print("Записей не найдено.")
+        return
+
+    columns = list(metadata[table_name]["columns"])
+    table = PrettyTable(columns)
+    for row in rows:
+        table.add_row([row[column] for column in columns])
+    print(table)
+
+
+def handle_data_command(command, user_input, metadata):
+    """Выполняет команды insert / select / update / delete / info."""
+    try:
+        match command:
+            case "insert":
+                table_name, values = parse_insert(user_input)
+                data = load_table_data(table_name)
+                new_data, new_id = insert(metadata, table_name, values, data)
+                save_table_data(table_name, new_data)
+                print(f'Запись с ID={new_id} успешно добавлена в таблицу '
+                      f'"{table_name}".')
+
+            case "select":
+                table_name, where_clause = parse_select(user_input)
+                validate_clause(metadata, table_name, where_clause or {})
+                data = load_table_data(table_name)
+                print_rows(metadata, table_name, select(data, where_clause))
+
+            case "update":
+                table_name, set_clause, where_clause = parse_update(user_input)
+                validate_clause(metadata, table_name, set_clause)
+                validate_clause(metadata, table_name, where_clause)
+                if "ID" in set_clause:
+                    raise ValueError("Менять ID нельзя.")
+                data = load_table_data(table_name)
+                new_data, ids = update(data, set_clause, where_clause)
+                if not ids:
+                    print("Записей не найдено.")
+                    return
+                save_table_data(table_name, new_data)
+                for record_id in ids:
+                    print(f'Запись с ID={record_id} в таблице "{table_name}" '
+                          "успешно обновлена.")
+
+            case "delete":
+                table_name, where_clause = parse_delete(user_input)
+                validate_clause(metadata, table_name, where_clause)
+                data = load_table_data(table_name)
+                new_data, ids = delete(data, where_clause)
+                if not ids:
+                    print("Записей не найдено.")
+                    return
+                save_table_data(table_name, new_data)
+                for record_id in ids:
+                    print(f'Запись с ID={record_id} успешно удалена из таблицы '
+                          f'"{table_name}".')
+
+            case "info":
+                table_name = parse_info(user_input)
+                if table_name not in metadata:
+                    raise ValueError(f'Таблица "{table_name}" не существует.')
+                columns = metadata[table_name]["columns"]
+                columns_str = ", ".join(f"{n}:{t}" for n, t in columns.items())
+                print(f"Таблица: {table_name}")
+                print(f"Столбцы: {columns_str}")
+                print(f"Количество записей: {len(load_table_data(table_name))}")
+
+    except ValueError as error:
+        print(f"Ошибка: {error}")
 
 
 def run():
@@ -30,21 +149,27 @@ def run():
         metadata = load_metadata(META_FILE)
 
         try:
-            user_input = input(PROMPT)
+            user_input = input(PROMPT).strip()
         except (EOFError, KeyboardInterrupt):
             print("\nВыход.")
             break
+
+        if not user_input:
+            continue
+
+        command = user_input.split()[0]
+
+        # Команды с данными разбираем по всей строке целиком,
+        # иначе shlex испортит кавычки и запятые в значениях
+        if command in DATA_COMMANDS:
+            handle_data_command(command, user_input, metadata)
+            continue
 
         try:
             args = shlex.split(user_input)
         except ValueError:
             print(f"Некорректное значение: {user_input}. Попробуйте снова.")
             continue
-
-        if not args:
-            continue
-
-        command = args[0]
 
         match command:
             case "create_table":
