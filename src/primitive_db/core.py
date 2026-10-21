@@ -71,3 +71,85 @@ def list_tables(metadata):
         return
     for table_name in metadata:
         print(f"- {table_name}")
+
+
+TYPE_MAP = {"int": int, "str": str, "bool": bool}
+
+
+def _check_type(value, type_name):
+    """Проверяет, что значение подходит под тип столбца."""
+    if type_name == "int":
+        # bool в Python это подкласс int, поэтому исключаем его отдельно
+        return isinstance(value, int) and not isinstance(value, bool)
+    return isinstance(value, TYPE_MAP[type_name])
+
+
+def _get_schema(metadata, table_name):
+    if table_name not in metadata:
+        raise ValueError(f'Таблица "{table_name}" не существует.')
+    return metadata[table_name]["columns"]
+
+
+def validate_clause(metadata, table_name, clause):
+    """Проверяет, что в условии есть такие столбцы и типы значений верные."""
+    schema = _get_schema(metadata, table_name)
+    for column, value in clause.items():
+        if column not in schema:
+            raise ValueError(f'Столбца "{column}" нет в таблице "{table_name}".')
+        if not _check_type(value, schema[column]):
+            raise ValueError(
+                f'Неверный тип значения для "{column}": '
+                f"ожидается {schema[column]}."
+            )
+
+
+def insert(metadata, table_name, values, table_data):
+    """Добавляет запись. Возвращает (новые данные таблицы, новый ID)."""
+    schema = _get_schema(metadata, table_name)
+    columns = [name for name in schema if name != "ID"]
+
+    if len(values) != len(columns):
+        raise ValueError(
+            f"Ожидается значений: {len(columns)}, передано: {len(values)}."
+        )
+
+    record = {}
+    for column, value in zip(columns, values):
+        if not _check_type(value, schema[column]):
+            raise ValueError(
+                f'Неверный тип значения для "{column}": '
+                f"ожидается {schema[column]}."
+            )
+        record[column] = value
+
+    new_id = max((row["ID"] for row in table_data), default=0) + 1
+    new_record = {"ID": new_id, **record}
+    return table_data + [new_record], new_id
+
+
+def _matches(record, where_clause):
+    return all(record.get(key) == value for key, value in where_clause.items())
+
+
+def select(table_data, where_clause=None):
+    """Возвращает все записи или только подходящие под условие."""
+    if not where_clause:
+        return table_data
+    return [row for row in table_data if _matches(row, where_clause)]
+
+
+def update(table_data, set_clause, where_clause):
+    """Обновляет подходящие записи. Возвращает (данные, список обновлённых ID)."""
+    updated_ids = []
+    for row in table_data:
+        if _matches(row, where_clause):
+            row.update(set_clause)
+            updated_ids.append(row["ID"])
+    return table_data, updated_ids
+
+
+def delete(table_data, where_clause):
+    """Удаляет подходящие записи. Возвращает (данные, список удалённых ID)."""
+    deleted_ids = [row["ID"] for row in table_data if _matches(row, where_clause)]
+    remaining = [row for row in table_data if not _matches(row, where_clause)]
+    return remaining, deleted_ids
