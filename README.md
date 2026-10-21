@@ -32,3 +32,5 @@
 ```
 
 Информация о таблицах хранится в файле `db_meta.json`.
+
+[![asciicast](https://asciinema.org/a/4d769BzUJOcoMFeT.svg)](https://asciinema.org/a/4d769BzUJOcoMFeT)
