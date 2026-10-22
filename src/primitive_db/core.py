@@ -1,6 +1,5 @@
+from primitive_db.constants import TYPE_MAP, VALID_TYPES
 from primitive_db.decorators import confirm_action, handle_db_errors, log_time
-
-VALID_TYPES = ("int", "str", "bool")
 
 
 def _parse_columns(columns):
@@ -75,9 +74,6 @@ def list_tables(metadata):
         return
     for table_name in metadata:
         print(f"- {table_name}")
-
-
-TYPE_MAP = {"int": int, "str": str, "bool": bool}
 
 
 def _check_type(value, type_name):
