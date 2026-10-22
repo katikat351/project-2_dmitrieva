@@ -1,6 +1,5 @@
+from primitive_db.constants import TYPE_MAP, VALID_TYPES
 from primitive_db.decorators import confirm_action, handle_db_errors, log_time
-
-VALID_TYPES = ("int", "str", "bool")
 
 
 def _parse_columns(columns):
@@ -77,9 +76,6 @@ def list_tables(metadata):
         print(f"- {table_name}")
 
 
-TYPE_MAP = {"int": int, "str": str, "bool": bool}
-
-
 def _check_type(value, type_name):
     """Проверяет, что значение подходит под тип столбца."""
     if type_name == "int":
@@ -89,6 +85,7 @@ def _check_type(value, type_name):
 
 
 def _get_schema(metadata, table_name):
+    """Возвращает схему столбцов таблицы или ошибку, если её нет."""
     if table_name not in metadata:
         raise ValueError(f'Таблица "{table_name}" не существует.')
     return metadata[table_name]["columns"]
@@ -134,6 +131,7 @@ def insert(metadata, table_name, values, table_data):
 
 
 def _matches(record, where_clause):
+    """Проверяет, подходит ли запись под условие."""
     return all(record.get(key) == value for key, value in where_clause.items())
 
 

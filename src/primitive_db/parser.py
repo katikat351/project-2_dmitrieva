@@ -1,4 +1,11 @@
-import re
+from primitive_db.constants import (
+    DELETE_USAGE,
+    INFO_USAGE,
+    INSERT_USAGE,
+    QUOTES,
+    SELECT_USAGE,
+    UPDATE_USAGE,
+)
 
 
 def parse_value(raw):
@@ -51,59 +58,91 @@ def parse_condition(text):
     return result
 
 
-# Разбор целых команд регулярками
-INSERT_RE = re.compile(
-    r"^insert\s+into\s+(\w+)\s+values\s*\((.*)\)\s*$", re.IGNORECASE
-)
-SELECT_RE = re.compile(
-    r"^select\s+from\s+(\w+)(?:\s+where\s+(.+))?\s*$", re.IGNORECASE
-)
-UPDATE_RE = re.compile(
-    r"^update\s+(\w+)\s+set\s+(.+?)\s+where\s+(.+)$", re.IGNORECASE
-)
-DELETE_RE = re.compile(
-    r"^delete\s+from\s+(\w+)\s+where\s+(.+)$", re.IGNORECASE
-)
-INFO_RE = re.compile(r"^info\s+(\w+)\s*$", re.IGNORECASE)
+def _starts_with(parts, *words):
+    """Проверяет, что первые слова команды совпадают с ожидаемыми."""
+    if len(parts) < len(words):
+        return False
+    return all(part.lower() == word for part, word in zip(parts, words))
+
+
+def _parse_where(text, usage):
+    """Разбирает строку 'where <условие>' и возвращает словарь условия."""
+    parts = text.split(None, 1)
+    if len(parts) != 2 or parts[0].lower() != "where":
+        raise ValueError(usage)
+    return parse_condition(parts[1])
+
+
+def _split_on_keyword(text, keyword):
+    """Делит строку по слову-ключу вне кавычек. Возвращает пару или None."""
+    marker = f" {keyword} "
+    quote = None
+    for index, char in enumerate(text):
+        if quote:
+            if char == quote:
+                quote = None
+        elif char in QUOTES:
+            quote = char
+        elif text[index:index + len(marker)].lower() == marker:
+            return text[:index], text[index + len(marker):]
+    return None
 
 
 def parse_insert(line):
-    m = INSERT_RE.match(line.strip())
-    if not m:
-        raise ValueError("Формат: insert into <таблица> values (<значения>)")
-    table, values_text = m.groups()
-    return table, [parse_value(v) for v in split_values(values_text)]
+    """Разбирает 'insert into <таблица> values (...)'."""
+    parts = line.strip().split(None, 3)
+    if len(parts) != 4 or not _starts_with(parts, "insert", "into"):
+        raise ValueError(INSERT_USAGE)
+
+    rest = parts[3].strip()
+    if not rest.lower().startswith("values"):
+        raise ValueError(INSERT_USAGE)
+    rest = rest[len("values"):].strip()
+    if not (rest.startswith("(") and rest.endswith(")")):
+        raise ValueError(INSERT_USAGE)
+
+    values = [parse_value(value) for value in split_values(rest[1:-1])]
+    return parts[2], values
 
 
 def parse_select(line):
-    m = SELECT_RE.match(line.strip())
-    if not m:
-        raise ValueError("Формат: select from <таблица> [where <столбец> = <значение>]")
-    table, where = m.groups()
-    return table, parse_condition(where) if where else None
+    """Разбирает 'select from <таблица> [where ...]'."""
+    parts = line.strip().split(None, 3)
+    if len(parts) < 3 or not _starts_with(parts, "select", "from"):
+        raise ValueError(SELECT_USAGE)
+    if len(parts) == 3:
+        return parts[2], None
+    return parts[2], _parse_where(parts[3], SELECT_USAGE)
 
 
 def parse_update(line):
-    m = UPDATE_RE.match(line.strip())
-    if not m:
-        raise ValueError(
-            "Формат: update <таблица> set <столбец> = <значение> "
-            "where <столбец> = <значение>"
-        )
-    table, set_text, where_text = m.groups()
-    return table, parse_condition(set_text), parse_condition(where_text)
+    """Разбирает 'update <таблица> set ... where ...'."""
+    parts = line.strip().split(None, 2)
+    if len(parts) != 3 or not _starts_with(parts, "update"):
+        raise ValueError(UPDATE_USAGE)
+
+    set_parts = parts[2].split(None, 1)
+    if len(set_parts) != 2 or set_parts[0].lower() != "set":
+        raise ValueError(UPDATE_USAGE)
+
+    halves = _split_on_keyword(set_parts[1], "where")
+    if halves is None:
+        raise ValueError(UPDATE_USAGE)
+    set_text, where_text = halves
+    return parts[1], parse_condition(set_text), parse_condition(where_text)
 
 
 def parse_delete(line):
-    m = DELETE_RE.match(line.strip())
-    if not m:
-        raise ValueError("Формат: delete from <таблица> where <столбец> = <значение>")
-    table, where_text = m.groups()
-    return table, parse_condition(where_text)
+    """Разбирает 'delete from <таблица> where ...'."""
+    parts = line.strip().split(None, 3)
+    if len(parts) != 4 or not _starts_with(parts, "delete", "from"):
+        raise ValueError(DELETE_USAGE)
+    return parts[2], _parse_where(parts[3], DELETE_USAGE)
 
 
 def parse_info(line):
-    m = INFO_RE.match(line.strip())
-    if not m:
-        raise ValueError("Формат: info <таблица>")
-    return m.group(1)
+    """Разбирает 'info <таблица>' и возвращает имя таблицы."""
+    parts = line.split()
+    if len(parts) != 2 or not _starts_with(parts, "info"):
+        raise ValueError(INFO_USAGE)
+    return parts[1]

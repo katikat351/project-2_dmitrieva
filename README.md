@@ -1,10 +1,41 @@
-\# primitive\_db
+# primitive_db
 
+Учебный проект: консольная база данных на Python. Поддерживает создание и удаление таблиц, CRUD-операции, хранение данных в JSON-файлах, подтверждение опасных действий и кэширование запросов `select`.
 
-Учебный проект: простая база данных на Python.
+## Установка
 
+Требуется Python 3.12+ и [uv](https://docs.astral.sh/uv/).
 
-После установки пакета команда `project` выводит приветствие.
+```
+git clone https://github.com/katikat351/project-2_dmitrieva
+cd project-2_dmitrieva
+make install
+```
+
+Без `make`: `uv sync`.
+
+## Запуск
+
+```
+make run
+```
+
+Без `make`: `uv run database`. Установленный пакет (`uv tool install .`) запускается командой `database`.
+
+## Проверка кода
+
+```
+make lint
+```
+
+Без `make`: `uv run ruff check .`.
+
+## Демонстрация
+
+Полный сценарий: запуск, создание таблицы, добавление, чтение, обновление и удаление данных, удаление таблицы.
+
+[Полная демонстрация (asciinema)](https://asciinema.org/a/zavxrhpRkqBJ586x)
+
 
 ## Управление таблицами
 

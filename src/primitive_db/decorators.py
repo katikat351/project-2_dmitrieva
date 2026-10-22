@@ -1,11 +1,9 @@
 import time
-from functools import wraps
 
 
 def handle_db_errors(func):
     """Перехватывает типичные ошибки работы с базой и выводит сообщение."""
 
-    @wraps(func)
     def wrapper(*args, **kwargs):
         try:
             return func(*args, **kwargs)
@@ -28,7 +26,6 @@ def confirm_action(action_name):
     """Фабрика декораторов: спрашивает подтверждение перед опасной операцией."""
 
     def decorator(func):
-        @wraps(func)
         def wrapper(*args, **kwargs):
             answer = input(
                 f'Вы уверены, что хотите выполнить "{action_name}"? [y/n]: '
@@ -46,7 +43,6 @@ def confirm_action(action_name):
 def log_time(func):
     """Замеряет время выполнения функции и выводит его."""
 
-    @wraps(func)
     def wrapper(*args, **kwargs):
         start = time.monotonic()
         result = func(*args, **kwargs)
@@ -55,3 +51,21 @@ def log_time(func):
         return result
 
     return wrapper
+
+
+def create_cacher():
+    """Возвращает функцию cache_result(key, value_func) с кэшем в замыкании."""
+    cache = {}
+
+    def cache_result(key, value_func):
+        if key in cache:
+            return cache[key]
+        result = value_func()
+        cache[key] = result
+        return result
+
+    def clear():
+        cache.clear()
+
+    cache_result.clear = clear
+    return cache_result

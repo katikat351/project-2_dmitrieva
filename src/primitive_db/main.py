@@ -3,6 +3,7 @@ from primitive_db.engine import run
 
 
 def main():
+    """Точка входа: запускает главный цикл базы данных."""
     run()
 
 

@@ -2,6 +2,7 @@ import shlex
 
 from prettytable import PrettyTable
 
+from primitive_db.constants import DATA_COMMANDS, META_FILE, PROMPT
 from primitive_db.core import (
     create_table,
     delete,
@@ -12,7 +13,7 @@ from primitive_db.core import (
     update,
     validate_clause,
 )
-from primitive_db.decorators import handle_db_errors
+from primitive_db.decorators import create_cacher, handle_db_errors
 from primitive_db.parser import (
     parse_delete,
     parse_info,
@@ -21,16 +22,12 @@ from primitive_db.parser import (
     parse_update,
 )
 from primitive_db.utils import (
-    create_cacher,
+    delete_table_data,
     load_metadata,
     load_table_data,
     save_metadata,
     save_table_data,
 )
-
-META_FILE = "db_meta.json"
-PROMPT = ">>>Введите команду: "
-DATA_COMMANDS = ("insert", "select", "update", "delete", "info")
 
 select_cache = create_cacher()
 
@@ -209,6 +206,7 @@ def run():
                     continue
                 if new_metadata != metadata:
                     save_metadata(META_FILE, new_metadata)
+                    delete_table_data(args[1])
                     select_cache.clear()
 
             case "list_tables":
