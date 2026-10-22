@@ -36,3 +36,20 @@ def save_table_data(table_name, data):
     filepath = DATA_DIR / f"{table_name}.json"
     with open(filepath, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
+
+def create_cacher():
+    """Возвращает функцию cache_result(key, value_func) с кэшем в замыкании."""
+    cache = {}
+
+    def cache_result(key, value_func):
+        if key in cache:
+            return cache[key]
+        result = value_func()
+        cache[key] = result
+        return result
+
+    def clear():
+        cache.clear()
+
+    cache_result.clear = clear
+    return cache_result

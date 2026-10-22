@@ -1,3 +1,5 @@
+from primitive_db.decorators import confirm_action, handle_db_errors, log_time
+
 VALID_TYPES = ("int", "str", "bool")
 
 
@@ -54,6 +56,8 @@ def create_table(metadata, table_name, columns):
     return {**metadata, table_name: {"columns": table_columns}}
 
 
+@handle_db_errors
+@confirm_action("удаление таблицы")
 def drop_table(metadata, table_name):
     """Удаляет таблицу из метаданных."""
     if table_name not in metadata:
@@ -103,6 +107,8 @@ def validate_clause(metadata, table_name, clause):
             )
 
 
+@handle_db_errors
+@log_time
 def insert(metadata, table_name, values, table_data):
     """Добавляет запись. Возвращает (новые данные таблицы, новый ID)."""
     schema = _get_schema(metadata, table_name)
@@ -131,6 +137,8 @@ def _matches(record, where_clause):
     return all(record.get(key) == value for key, value in where_clause.items())
 
 
+@handle_db_errors
+@log_time
 def select(table_data, where_clause=None):
     """Возвращает все записи или только подходящие под условие."""
     if not where_clause:
@@ -138,6 +146,7 @@ def select(table_data, where_clause=None):
     return [row for row in table_data if _matches(row, where_clause)]
 
 
+@handle_db_errors
 def update(table_data, set_clause, where_clause):
     """Обновляет подходящие записи. Возвращает (данные, список обновлённых ID)."""
     updated_ids = []
@@ -148,6 +157,8 @@ def update(table_data, set_clause, where_clause):
     return table_data, updated_ids
 
 
+@handle_db_errors
+@confirm_action("удаление записей")
 def delete(table_data, where_clause):
     """Удаляет подходящие записи. Возвращает (данные, список удалённых ID)."""
     deleted_ids = [row["ID"] for row in table_data if _matches(row, where_clause)]
