@@ -5,3 +5,5 @@ dist/
 *.egg-info
 db_meta.json
 demo.cast
+data/
+demo2.cast
